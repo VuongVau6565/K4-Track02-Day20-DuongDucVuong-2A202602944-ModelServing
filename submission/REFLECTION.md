@@ -6,10 +6,10 @@
 >
 > `make verify` sẽ fail nếu còn placeholder chưa điền. Đó là cố ý.
 
-**Họ Tên:** _<Họ Tên>_
-**MSSV:** _<MSSV>_
-**Cohort:** _<A20-K1 / A20-K2 / ...>_
-**Ngày submit:** _<YYYY-MM-DD>_
+**Họ Tên:** Dương Đức Vương
+**MSSV:** 2A202602944
+**Cohort:** A20-K4
+**Ngày submit:** 2026-10-06
 
 ---
 
@@ -17,23 +17,25 @@
 
 > Từ `make probe`. Paste output hoặc điền tay.
 
-- **OS:** _<macOS 14 / Windows 11 / Ubuntu 24.04 / ...>_
-- **CPU:** _<Apple M2 / Intel i7-12700H / AMD Ryzen 7 5800H>_
-- **Cores:** _<physical / logical>_
-- **CPU extensions:** _<AVX2 / AVX-512 / NEON / —>_
-- **RAM:** _<GB>_
-- **Accelerator:** _<NVIDIA RTX 4060 / Apple Metal / Vulkan / CPU only>_
-- **llama.cpp asset đã tải:** _<vd: llama-b10488-bin-macos-arm64.tar.gz>_
-- **Model đã dùng:** _<Gemma 4 E2B / Qwen3.5 0.8B>_ (`LAB_MODEL=`_<gemma4-e2b / qwen35-0.8b>_)
-- **Quantization:** _<primary>_ + _<compare>_ (từ `models/active.json`)
+- **OS:** Windows 10 (host Windows-AMD64)
+- **CPU:** Intel Core i7-4500U @ 1.80 GHz
+- **Cores:** 2 physical / 4 logical (theo `hardware.json`)
+- **CPU extensions:** AVX2 (Intel Haswell)
+- **RAM:** 11.9 GB
+- **Accelerator:** Vulkan device detected; inference ran with `ngl=0` (CPU)
+- **llama.cpp asset đã tải:** prebuilt llama.cpp b10488, Windows AMD64, Vulkan
+- **Model đã dùng:** Qwen3.5 0.8B (`LAB_MODEL=qwen35-0.8b`)
+- **Quantization:** Q4_K_M + UD-Q2_K_XL (từ `models/active.json`)
 
-**Chạy ở đâu:** _<laptop của tôi / Colab / Kaggle>_
-_(Nếu dùng cloud fallback: nói rõ vì sao — RAM < 8 GB, setup fail, v.v. Không mất điểm.)_
+**Chạy ở đâu:** máy local Windows, không dùng Colab/Kaggle.
 
 **Setup story** (≤ 80 chữ): điều gì cần thay đổi để lab chạy trên máy bạn? Có bước
 nào fail rồi phải workaround không?
 
-_Answer here._
+Setup và tải runtime/model hoàn tất trên máy local, không cần compiler hay GPU. Trên
+PowerShell, lần đầu chạy benchmark cần đặt `PYTHONUTF8=1` để tránh lỗi in ký tự
+Unicode theo code page mặc định. Cổng 8080 ban đầu đang được dùng; sau khi tiến
+trình cũ dừng, server lab chạy bình thường trên cổng mặc định.
 
 ---
 
@@ -43,14 +45,17 @@ _Answer here._
 
 | Quantization | Size (GB) | Load (ms) | TTFT P50/P95 (ms) | TPOT P50/P95 (ms) | E2E P50/P95/P99 (ms) | Decode (tok/s) |
 |---|--:|--:|--:|--:|--:|--:|
-| UD-Q4_K_XL | | | | | | |
-| UD-Q2_K_XL | | | | | | |
+| Q4_K_M | 0.50 | 8870 | 819 / 1381 | 84.3 / 170.5 | 5874 / 11853 / 11853 | 11.9 |
+| UD-Q2_K_XL | 0.39 | 3704 | 1316 / 1893 | 82.6 / 125.0 | 6723 / 9192 / 9192 | 12.1 |
 
 **Quan sát** (≤ 60 chữ): 2-bit nhanh hơn bao nhiêu, và **có đáng không**? Bạn đã thử
 hỏi cùng một câu trên cả hai (`make serve` vs `.venv/bin/python labs/02-serve/serve.py --compare`)
 chưa? Chất lượng khác nhau thế nào?
 
-_Answer here._
+Bản Q2 decode 12.1 tok/s, nhanh hơn Q4 1.7%, và nhỏ hơn 0.11 GB (22%), nhưng TTFT
+và E2E median lại cao hơn; qua so sánh câu trả lời, Q2 cũng kém đúng trọng tâm hơn.
+Vì vậy tôi ưu tiên Q4 nếu cần chất lượng; chênh lệch decode quá nhỏ để đổi lấy
+trade-off đó. Số liệu không cho thấy Q2 nhanh hơn toàn diện.
 
 ---
 
@@ -60,22 +65,26 @@ _Answer here._
 
 | Users | RPS | P50 (ms) | P95 (ms) | P99 (ms) | Eff. concurrency | Failures |
 |--:|--:|--:|--:|--:|--:|--:|
-| 10 | | | | | | |
-| 50 | | | | | | |
+| 10 | 0.12 | 30000 | 49000 | 49000 | 3.8 | 0.0% |
+| 50 | 0.11 | 47000 | 47000 | 47000 | 4.0 | 0.0% |
 
-- **Offered load tăng 5×, throughput thực tăng:** _<X.XX>×_
-- **P95 tăng:** _<X.XX>×_
-- **Effective concurrency ở 50 users:** _<số>_ so với `--parallel` = _<số>_ slots
+- **Offered load tăng 5×, throughput thực tăng:** 0.87× (RPS đo được giảm)
+- **P95 tăng:** 0.96× (mẫu quá nhỏ để so sánh đáng tin cậy)
+- **Effective concurrency ở 50 users:** 4.0 so với `--parallel` = 4 slots
 
 **Peak `llamacpp:n_busy_slots_per_decode`** (từ `make metrics` khi `make load-50` đang
-chạy): _<số>_ / _<slots>_ slots
+chạy): 2.05 / 4 slots; `requests_deferred` peak = 46.
 
 **Saturation reading** (≤ 80 chữ): server của bạn bão hoà ở đâu, và **bằng chứng nào**
 thuyết phục bạn? Nếu P95 tăng nhanh hơn RPS thì phần latency thêm đó là queue time hay
 compute time — bạn biết bằng cách nào? Nếu bạn phải nâng goodput@SLO, bạn sẽ đổi knob
 nào **trước**, và vì sao knob đó?
 
-_Answer here._
+Ở 50 users, metrics ghi nhận 4 request đang xử lý, peak 46 bị defer và
+`n_busy_slots_per_decode` đạt 2.05/4: có queue. Tuy nhiên Locust chỉ hoàn tất 6
+request ở 10 users và 5 ở 50 users; RPS đo được là 0.87×, P95 là 0.96× và effective
+concurrency là 4.0/4. Mẫu nhỏ nên chưa thể định vị saturation hoặc tách queue khỏi
+compute trong P95. Tôi sẽ thử giới hạn output tokens để giải phóng decode slot sớm hơn.
 
 ---
 
@@ -85,23 +94,26 @@ _Answer here._
 
 | Day | Piece | Real hay stub? |
 |---|---|---|
-| N16 Cloud/IaC | | |
-| N17 Data pipeline | | |
-| N18 Lakehouse | | |
-| N19 Vector + features | | |
+| N16 Cloud/IaC | Stub — localhost only, no cluster/IaC connected |
+| N17 Data pipeline | Stub — documents are supplied in-memory |
+| N18 Lakehouse | Stub — toy `TOY_DOCS`, no lakehouse connected |
+| N19 Vector + features | Stub — keyword overlap, no vector index/features |
 | N20 Serving | `llama-server` | real |
 
 **Latency split** (mean của 3 query, từ output của `pipeline.py`):
 
-- embed: _<ms>_
-- retrieve: _<ms>_
-- llm: _<ms>_
-- **stage chiếm nhiều nhất:** _<stage>_ (_<%>_ của total)
+- embed: 0.0 ms
+- retrieve: 0.2 ms
+- llm: 19,576.9 ms
+- **stage chiếm nhiều nhất:** llm (xấp xỉ 100% của total 19,577.2 ms)
 
 **Reflection** (≤ 60 chữ): bottleneck ở đâu? Có khớp với kỳ vọng của bạn không? Nếu
 phải giảm latency của pipeline này 2×, bạn sẽ tấn công vào đâu?
 
-_Answer here._
+LLM chiếm gần như toàn bộ latency (19,576.9/19,577.2 ms), đúng như dự đoán với
+model chạy CPU. Embed không dùng server nên mất 0 ms; keyword retrieval trên sáu
+tài liệu đồ chơi chỉ mất 0.2 ms. Muốn giảm tổng latency 2×, tôi sẽ giới hạn số
+token sinh ra trước: decode chiếm phần lớn thời gian LLM, đổi lại câu trả lời ngắn hơn.
 
 ---
 
@@ -111,22 +123,28 @@ _Answer here._
 > một before/after thật (`benchmarks/01-tuning-tg128.md`). Đổi quantization,
 > `LAB_N_CTX`, hay `--parallel` rồi đo lại cũng được.
 
-**Change:** _<vd: hạ -t từ 16 xuống 8; vd: đổi sang UD-Q2_K_XL; vd: --parallel 4 → 8>_
+**Change:** Tăng số thread decode từ 1 lên 2 (`-t 1` → `-t 2`), bằng số nhân vật lý.
 
 ```
-before:  <số + đơn vị>
-after:   <số + đơn vị>
-speedup: <X.Y>×
+before:  -t 1 = 4.5 tok/s (llama-bench tg128, trung bình 2 lần chạy)
+after:   -t 2 = 7.1 tok/s (llama-bench tg128, trung bình 2 lần chạy)
+speedup: 1.58×
 ```
 
 **Tại sao nó work** (1–2 đoạn — đây là phần grader đọc kỹ nhất):
 
-_Giải thích như đang nói với bạn ngồi cạnh. Bám vào **cơ chế**, không phải "vibes":
-memory bandwidth? vector width? cache residency? scheduling? queueing? Nếu kết quả
-**khác** với kỳ vọng từ deck — nói rõ, và giải thích vì sao. Grader thưởng điểm cho
-lập luận đúng về một kết quả bất ngờ, hơn là một con số đẹp không được giải thích._
+Trên CPU i7-4500U 2 nhân vật lý/4 luồng logic, tăng từ 1 lên 2 thread làm decode
+tăng từ 4.5 lên 7.1 tok/s (1.58×), vì hai nhân vật lý có thể xử lý công việc song
+song. Đây là điểm tốt nhất trong sweep và cũng là knee: thêm thread thứ ba và thứ
+tư chỉ dùng SMT trên hai nhân đó, không thêm nhân vật lý hay băng thông bộ nhớ.
 
-_Answer here._
+Ở 4 threads tốc độ giảm còn 6.2 tok/s, thấp hơn 13% so với 2 threads. Mỗi bước
+decode phải truy cập trọng số model; các luồng SMT cùng chia sẻ tài nguyên thực thi
+và cache trên nhân, còn nhiều luồng cạnh tranh nguồn dữ liệu bộ nhớ thay vì làm
+tăng khả năng xử lý độc lập. Kết quả này phù hợp với giới hạn tài nguyên của
+decode, nhưng benchmark không đo trực tiếp băng thông nên không khẳng định riêng
+băng thông là nguyên nhân duy nhất. Baseline trước đó đã dùng 2 threads, đúng với
+mức tốt nhất tìm được.
 
 ---
 
@@ -185,4 +203,6 @@ xem được → 0 điểm.
 
 ## 9. Khai báo sử dụng AI  *(xem `docs/RULES.md` §3)*
 
-_(Công cụ nào, dùng vào việc gì. Ghi "Không dùng" nếu không dùng.)_
+Tôi dùng Copilot để hỗ trợ đọc lỗi, chạy và diễn giải các phép đo thật trên máy
+này, cũng như điền report/reflection dựa trên log sinh ra. Tôi đã xem lại các số
+liệu và cần có thể tự giải thích các kết luận đã nộp.
